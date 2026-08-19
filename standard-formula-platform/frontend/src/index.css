@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.user-mode main > section.mt-8.grid > div:first-child button,
+.user-mode main > section.mt-8.grid > div:first-child > div:first-child p { display: none; }
+
+svg.mt-5.w-full { display: none; }
+
+.user-mode form > div > input[type='range'] { display: none; }
+
+/* PDF 第 30 页第 10.2.1 条“式中”原页裁图，作为参数释义，不以 OCR 文本替代。 */
+
+
+:root{--bg:244 247 249;--surface:255 255 255;--surface-2:238 243 246;--border:211 221 229;--fg:31 47 61;--muted:98 116 132;--brand:31 87 121;--brand-fg:255 255 255;--success:35 115 86;--danger:178 69 76;--warn:153 111 34}*{box-sizing:border-box}body{margin:0;background:rgb(var(--bg));color:rgb(var(--fg));font-family:"Microsoft YaHei",Inter,ui-sans-serif,system-ui,sans-serif}.container-page{width:min(1088px,calc(100% - 32px));margin-inline:auto}.formula-code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.pdf-page{box-shadow:0 3px 18px rgb(35 52 65 /.18)}
+
+.formula-display { display: inline-flex; align-items: center; gap: .4rem; min-width: max-content; font-family: "Times New Roman", Times, serif; font-size: 1.15rem; color: rgb(var(--fg)); }
+.formula-fraction { display: inline-flex; flex-direction: column; min-width: 3.1rem; align-items: center; vertical-align: middle; line-height: 1.15; text-align: center; }
+.formula-fraction > span:first-child { width: 100%; border-bottom: 1px solid currentColor; padding: 0 .25rem .1rem; }
+.formula-fraction > span:last-child { padding: .1rem .25rem 0; }
+.formula-display sub { font-size: .65em; }
+.grid.items-start > div:nth-child(2) > .rounded-2xl:first-child form small { text-align: left; }
+.grid.items-start > div:nth-child(2) > .rounded-2xl:first-child > .mt-4.rounded-xl.border > p { text-align: center; }
+.grid.items-start > div:first-child > .rounded-2xl:first-child > div:nth-of-type(2) { display: none; }
+.user-mode main > header > p { font-size: .95rem; line-height: 1.65; }
+.user-mode main > section.grid.items-start h2 { font-size: 1.125rem; }
+.user-mode main > section.grid.items-start > div.space-y-5 > .rounded-2xl > p.text-sm { font-size: .95rem; line-height: 1.6; }
+.user-mode main > section.grid.items-start label.text-sm { font-size: .95rem; }
+.user-mode main > section.grid.items-start label.text-sm small { font-size: .8rem; line-height: 1.55; }
+.pdf-reference-panel > div:first-child > p { display: none; }
+
+@media (min-width: 1280px) {
+  main > section.grid.items-start { align-items: stretch; gap: 14px; }
+  main > section.grid.items-start > div.space-y-5 { display: flex; min-height: 0; flex-direction: column; gap: 14px; border: 1px solid rgb(var(--border)); border-radius: 1rem; background: rgb(var(--surface)); box-shadow: 0 8px 22px rgb(35 52 65 /.08); }
+  main > section.grid.items-start > div.space-y-5 > .rounded-2xl { margin-top: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  main > section.grid.items-start > div.space-y-5 > .rounded-2xl:nth-child(2) { display: flex; min-height: 0; flex: 1; flex-direction: column; border-top: 1px solid rgb(var(--border)); padding-top: 14px; }
+  main > section.grid.items-start > div.space-y-5 > .rounded-2xl:nth-child(2) > a.mt-4 { display: flex; height: 0; min-height: 540px; flex: 1; flex-direction: column; align-items: center; overflow-x: hidden; }
+  main > section.grid.items-start > div.space-y-5 > .rounded-2xl:nth-child(2) > a.mt-4 > img { background: #fff; }
+  main > section.grid.items-start > div.space-y-5 > .pdf-reference-panel { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+  main > section.grid.items-start > div.space-y-5 > .pdf-reference-panel > .standard-pdf-preview { height: 0; min-height: 540px; flex: 1; }
+}

@@ -52,3 +52,16 @@ pnpm-debug.log*
 *.tar
 *.gz
 
+# Local source materials, OCR renders and portable runtimes
+.pnpm-store/
+reference-repos/
+MooringForceDemo-Complete/
+standard-formula-platform/runtime/
+standard-formula-platform/data/*.sqlite
+standard-formula-platform/data/ocr/pages/
+standard-formula-platform/logs/
+029港口工程荷载规范JTS 144-1-2010.pdf
+tmp-ocr-probe-*.png
+
+# Accidental nested working copy retained locally for recovery
+-/
