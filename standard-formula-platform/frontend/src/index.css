@@ -14,11 +14,9 @@ svg.mt-5.w-full { display: none; }
 
 :root{--bg:244 247 249;--surface:255 255 255;--surface-2:238 243 246;--border:211 221 229;--fg:31 47 61;--muted:98 116 132;--brand:31 87 121;--brand-fg:255 255 255;--success:35 115 86;--danger:178 69 76;--warn:153 111 34}*{box-sizing:border-box}body{margin:0;background:rgb(var(--bg));color:rgb(var(--fg));font-family:"Microsoft YaHei",Inter,ui-sans-serif,system-ui,sans-serif}.container-page{width:min(1088px,calc(100% - 32px));margin-inline:auto}.formula-code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.pdf-page{box-shadow:0 3px 18px rgb(35 52 65 /.18)}
 
-.formula-display { display: inline-flex; align-items: center; gap: .4rem; min-width: max-content; font-family: "Times New Roman", Times, serif; font-size: 1.15rem; color: rgb(var(--fg)); }
-.formula-fraction { display: inline-flex; flex-direction: column; min-width: 3.1rem; align-items: center; vertical-align: middle; line-height: 1.15; text-align: center; }
-.formula-fraction > span:first-child { width: 100%; border-bottom: 1px solid currentColor; padding: 0 .25rem .1rem; }
-.formula-fraction > span:last-child { padding: .1rem .25rem 0; }
-.formula-display sub { font-size: .65em; }
+.formula-viewport { overflow-x: auto; padding: .35rem 0; text-align: center; }
+.formula-display { display: inline-block; min-width: max-content; color: rgb(var(--fg)); font-size: 1.22rem; line-height: 1.55; }
+.formula-display .katex { font-size: 1em; }
 .grid.items-start > div:nth-child(2) > .rounded-2xl:first-child form small { text-align: left; }
 .grid.items-start > div:nth-child(2) > .rounded-2xl:first-child > .mt-4.rounded-xl.border > p { text-align: center; }
 .grid.items-start > div:first-child > .rounded-2xl:first-child > div:nth-of-type(2) { display: none; }

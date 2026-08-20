@@ -1,6 +1,8 @@
 import { BookOpen, Calculator, ClipboardCheck, FileSearch, FolderKanban, LogOut, type LucideIcon } from 'lucide-react';
+import katex from 'katex';
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import 'katex/dist/katex.min.css';
 import './index.css';
 import { Badge, Button, Card, Field, Input } from './components/ui';
 
@@ -45,11 +47,16 @@ function HistoryClearButton({token}:{token:string}){
   return <div className="absolute right-6 top-6"><Button type="button" variant="outline" size="sm" className="border-danger/40 text-danger hover:bg-danger/10" disabled={clearing} onClick={()=>void clear()}>{clearing?'正在清除…':'清除历史记录'}</Button></div>
 }
 
+function MathFormula({latex}:{latex:string}){
+  return <span className="formula-display" dangerouslySetInnerHTML={{__html:katex.renderToString(latex,{displayMode:false,throwOnError:false,strict:'ignore'})}}/>;
+}
 function FormulaExpression({values,result}:{values:Record<string,string>;result:Record<string,{value:number;unit:string}>|null}){
   const final=result?Object.values(result)[0]:null;
-  const fraction=(top:ReactNode,bottom:ReactNode)=><span className="formula-fraction"><span>{top}</span><span>{bottom}</span></span>;
-  const equation=(K:ReactNode,n:ReactNode,Fx:ReactNode,Fy:ReactNode,alpha:ReactNode,beta:ReactNode)=><span className="formula-display">N = {fraction(K,n)} [ {fraction(Fx,<>sin {alpha} cos {beta}</>)} + {fraction(Fy,<>cos {alpha} cos {beta}</>)} ]</span>;
-  return <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 p-4 text-sm"><p className="font-semibold text-brand">规范计算公式</p><div className="mt-3 overflow-auto">{equation('K','n',<>ΣF<sub>x</sub></>,<>ΣF<sub>y</sub></>,'α','β')}</div>{final&&<><p className="mt-4 font-semibold text-brand">本次参数代入</p><div className="mt-3 overflow-auto">{equation(values.K,values.n,values.Fx,values.Fy,`${values.alpha}°`,`${values.beta}°`)} <span className="formula-display">= {final.value.toFixed(2)} {final.unit}</span></div></>}</div>
+  const number=(value:string)=>Number.isFinite(Number(value))?String(Number(value)):'?';
+  const equation=(K:string,n:string,Fx:string,Fy:string,alpha:string,beta:string)=>String.raw`N = \frac{${K}}{${n}}\left[\frac{${Fx}}{\sin ${alpha}\cos ${beta}} + \frac{${Fy}}{\cos ${alpha}\cos ${beta}}\right]`;
+  const standard=String.raw`N = \frac{K}{n}\left[\frac{\sum F_x}{\sin \alpha\cos \beta} + \frac{\sum F_y}{\cos \alpha\cos \beta}\right]`;
+  const substituted=`${equation(number(values.K),number(values.n),number(values.Fx),number(values.Fy),`${number(values.alpha)}^{\\circ}`,`${number(values.beta)}^{\\circ}`)} = ${final?`${final.value.toFixed(2)}\\,\\mathrm{${final.unit}}`:''}`;
+  return <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 p-4 text-sm"><p className="font-semibold text-brand">规范计算公式</p><div className="formula-viewport mt-3"><MathFormula latex={standard}/></div>{final&&<><p className="mt-4 font-semibold text-brand">本次参数代入</p><div className="formula-viewport mt-3"><MathFormula latex={substituted}/></div></>}</div>
 }
 
 function StandardPdfPreview({page}:{page:number}){const file=encodeURIComponent('/source-files/JTS-144-1-2010.pdf');return <iframe key={page} className="standard-pdf-preview mt-4 w-full rounded-xl border-0 bg-surface-2" src={`/pdfjs/web/viewer.html?embedded-layout=20260819&file=${file}#page=${page}&zoom=page-width`} title={`JTS 144-1-2010，第 ${page} 页`} />}
