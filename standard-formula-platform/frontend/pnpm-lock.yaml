@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       katex:
-        specifier: ^0.18.4
-        version: 0.18.4
+        specifier: 0.16.22
+        version: 0.16.22
       lucide-react:
         specifier: 0.427.0
         version: 0.427.0(react@19.2.8)
@@ -563,8 +563,8 @@ packages:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
 
-  katex@0.18.4:
-    resolution: {integrity: sha512-IMPntbRLOU+eu88XDiFKqQ8Akhr9Tv7jDMXqPhjG9SI1JMA4DIgXk4x9k4skJz2NZJXBRbC+2pYBLj9olqcZow==}
+  katex@0.16.22:
+    resolution: {integrity: sha512-XCHRdUw4lf3SKBaJe4EvgqIuWwkPSo9XoeO8GjQW94Bp7TWv9hNhzZjZ+OH9yf1UmLygb7DIT5GSFQiyt16zYg==}
     hasBin: true
 
   lilconfig@2.1.0:
@@ -1193,7 +1193,7 @@ snapshots:
 
   jiti@1.21.7: {}
 
-  katex@0.18.4:
+  katex@0.16.22:
     dependencies:
       commander: 8.3.0
 

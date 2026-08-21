@@ -1,2 +1,2 @@
 @echo off
-powershell -ExecutionPolicy Bypass -File "%~dp0Start-Platform.ps1"
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Start-Platform.ps1"

@@ -12,11 +12,22 @@ svg.mt-5.w-full { display: none; }
 /* PDF 第 30 页第 10.2.1 条“式中”原页裁图，作为参数释义，不以 OCR 文本替代。 */
 
 
-:root{--bg:244 247 249;--surface:255 255 255;--surface-2:238 243 246;--border:211 221 229;--fg:31 47 61;--muted:98 116 132;--brand:31 87 121;--brand-fg:255 255 255;--success:35 115 86;--danger:178 69 76;--warn:153 111 34}*{box-sizing:border-box}body{margin:0;background:rgb(var(--bg));color:rgb(var(--fg));font-family:"Microsoft YaHei",Inter,ui-sans-serif,system-ui,sans-serif}.container-page{width:min(1088px,calc(100% - 32px));margin-inline:auto}.formula-code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.pdf-page{box-shadow:0 3px 18px rgb(35 52 65 /.18)}
+:root{--bg:244 247 249;--surface:255 255 255;--surface-2:238 243 246;--border:211 221 229;--fg:31 47 61;--muted:98 116 132;--brand:31 87 121;--brand-fg:255 255 255;--success:35 115 86;--danger:178 69 76;--warn:197 83 0}*{box-sizing:border-box}body{margin:0;background:rgb(var(--bg));color:rgb(var(--fg));font-family:"Microsoft YaHei",Inter,ui-sans-serif,system-ui,sans-serif}.container-page{width:min(1088px,calc(100% - 32px));margin-inline:auto}.formula-code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.pdf-page{box-shadow:0 3px 18px rgb(35 52 65 /.18)}
 
-.formula-viewport { overflow-x: auto; padding: .35rem 0; text-align: center; }
-.formula-display { display: inline-block; min-width: max-content; color: rgb(var(--fg)); font-size: 1.22rem; line-height: 1.55; }
-.formula-display .katex { font-size: 1em; }
+@font-face {
+  font-family: "STIX Two Math";
+  src: url("./assets/fonts/STIXTwoMath-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+.formula-viewport { overflow: hidden; padding: .35rem 0; text-align: center; }
+.stix-formula { display: inline-block; max-width: 100%; color: rgb(var(--fg)); font-family: "STIX Two Math", serif; font-size: clamp(.92rem, 1.8vw, 1.28rem); line-height: 1.55; }
+.stix-formula math { font-family: inherit; }
+.formula-calculation { display: block; max-width: 100%; }
+.formula-calculation math { display: block; margin: .18rem 0; }
+.stix-formula .formula-result { border-bottom: 2px solid currentColor; padding-bottom: .08em; }
+.math-symbol { font-family: "STIX Two Math", serif; font-size: 1.08em; font-style: italic; }
+.math-symbol sub { font-size: .68em; line-height: 0; vertical-align: sub; }
 .grid.items-start > div:nth-child(2) > .rounded-2xl:first-child form small { text-align: left; }
 .grid.items-start > div:nth-child(2) > .rounded-2xl:first-child > .mt-4.rounded-xl.border > p { text-align: center; }
 .grid.items-start > div:first-child > .rounded-2xl:first-child > div:nth-of-type(2) { display: none; }
@@ -26,6 +37,106 @@ svg.mt-5.w-full { display: none; }
 .user-mode main > section.grid.items-start label.text-sm { font-size: .95rem; }
 .user-mode main > section.grid.items-start label.text-sm small { font-size: .8rem; line-height: 1.55; }
 .pdf-reference-panel > div:first-child > p { display: none; }
+
+.review-pdf-frame {
+  height: min(78vh, 820px);
+  overflow: auto;
+}
+
+.review-pdf-frame > .standard-pdf-preview {
+  display: block;
+  height: 100%;
+  min-height: 820px;
+  margin-top: 0;
+}
+
+.review-workbench-shell {
+  width: min(1320px, calc(100vw - 32px));
+  margin-inline: auto;
+}
+
+.review-workbench {
+  width: 100%;
+  margin-left: 0;
+  transform: none;
+}
+
+/* Keep the two review queues independent: opening OCR must never cover drafts. */
+.review-workbench > .rounded-2xl:first-child > details {
+  order: 1;
+  margin-top: 1rem;
+}
+.review-workbench > .rounded-2xl:first-child > details[open] > div {
+  max-height: 28rem;
+  overflow: auto;
+}
+.review-workbench > .rounded-2xl:first-child > p { order: 2; }
+.review-workbench > .rounded-2xl:first-child > div.mt-2 {
+  order: 3;
+  min-height: 24rem;
+  max-height: 36rem;
+  flex: 0 1 auto;
+}
+
+/* Standards library: a compact chapter navigator paired with a focused rule sheet. */
+.admin-mode main.container-page.py-12 > header[class*="sm:grid-cols-"] {
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgb(var(--border));
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgb(var(--surface)) 0%, rgb(var(--surface-2)) 100%);
+  box-shadow: 0 8px 22px rgb(35 52 65 / .06);
+}
+.admin-mode main.container-page.py-12 > header[class*="sm:grid-cols-"] h1 {
+  margin-top: .5rem;
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+}
+.admin-mode main.container-page.py-12 > div[class*="lg:grid-cols-[290px_1fr]"] {
+  grid-template-columns: minmax(265px, .72fr) minmax(0, 1.4fr);
+  align-items: stretch;
+  gap: 1.25rem;
+}
+.admin-mode main.container-page.py-12 > div[class*="lg:grid-cols-[290px_1fr]"] > .rounded-2xl:first-child {
+  display: grid;
+  align-content: start;
+  gap: .55rem;
+  padding: .55rem;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.admin-mode main.container-page.py-12 > div[class*="lg:grid-cols-[290px_1fr]"] > .rounded-2xl:first-child > button {
+  border: 1px solid rgb(var(--border));
+  border-radius: .85rem;
+  background: rgb(var(--surface));
+  box-shadow: 0 3px 10px rgb(35 52 65 / .04);
+}
+.admin-mode main.container-page.py-12 > div[class*="lg:grid-cols-[290px_1fr]"] > .rounded-2xl:first-child > button:hover {
+  border-color: rgb(var(--brand));
+}
+.admin-mode main.container-page.py-12 > div[class*="lg:grid-cols-[290px_1fr]"] > .rounded-2xl:nth-child(2) {
+  min-height: 100%;
+  padding: clamp(1.35rem, 2.2vw, 2rem);
+  background: rgb(var(--surface));
+  box-shadow: 0 10px 26px rgb(35 52 65 / .08);
+}
+.admin-mode main.container-page.py-12 > div[class*="lg:grid-cols-[290px_1fr]"] > .rounded-2xl:nth-child(2) > div.mt-7 {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, rgb(var(--brand) / .06), rgb(var(--surface-2)));
+}
+@media (max-width: 1023px) {
+  .admin-mode main.container-page.py-12 > header[class*="sm:grid-cols-"] { padding: 1rem; }
+}
+
+/* Make the primary calculation value the visual focal point. */
+main > section.grid.items-start > div.space-y-5 > .rounded-2xl:nth-child(2) > div.mt-4.rounded-xl.border-l-4 > strong {
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
 
 @media (min-width: 1280px) {
   main > section.grid.items-start { align-items: stretch; gap: 14px; }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import shutil
 from contextlib import contextmanager
@@ -61,11 +62,13 @@ def get_user(username: str) -> dict[str, Any] | None:
 def catalog(published_only: bool = True) -> list[dict[str, Any]]:
     query = """
     SELECT f.*, c.number chapter_number, c.title chapter_title, v.id version_id, v.version, v.status, v.latex, v.rule_json, v.variables_json, v.dependencies_json
-    FROM formulas f JOIN formula_versions v ON v.id=f.active_version_id LEFT JOIN chapters c ON c.id=f.chapter_id
+    FROM formulas f JOIN formula_versions v ON v.id=CASE WHEN ?=1 THEN f.active_version_id ELSE (
+        SELECT id FROM formula_versions WHERE formula_id=f.id ORDER BY version DESC LIMIT 1
+    ) END LEFT JOIN chapters c ON c.id=f.chapter_id
     WHERE (?=0 OR v.status='published') ORDER BY c.sort_order, f.code
     """
     with connect() as db:
-        rows = db.execute(query, (1 if published_only else 0,)).fetchall()
+        rows = db.execute(query, (1 if published_only else 0, 1 if published_only else 0)).fetchall()
     items = []
     for row in rows:
         item = dict(row)
@@ -106,8 +109,40 @@ def update_draft(formula_id: int, payload: dict[str, Any], author_id: int) -> in
         return version_id
 
 
+def save_calculation_chain(formula_id: int, predecessor_codes: list[str], author_id: int) -> int:
+    """Fork the latest authoring version with an explicit reviewed calculation chain.
+
+    The chain is presentation/execution-package metadata.  It deliberately does
+    not rewrite ``dependencies_json``: dependencies express the mathematical
+    data flow, while a standards editor may choose a different review order.
+    """
+    normalized = [code.strip() for code in predecessor_codes if code.strip()]
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("计算链中不能重复选择同一公式")
+    with connect() as db:
+        formula = db.execute("SELECT * FROM formulas WHERE id=?", (formula_id,)).fetchone()
+        latest = db.execute("SELECT * FROM formula_versions WHERE formula_id=? ORDER BY version DESC LIMIT 1", (formula_id,)).fetchone()
+        if not formula or not latest:
+            raise ValueError("公式不存在")
+        if formula["code"] in normalized:
+            raise ValueError("目标公式不能同时作为自己的前置公式")
+        available = {row["code"] for row in db.execute("SELECT code FROM formulas WHERE standard_id=?", (formula["standard_id"],)).fetchall()}
+        missing = [code for code in normalized if code not in available]
+        if missing:
+            raise ValueError("计算链中存在未编号公式：" + "、".join(missing))
+        rule = json.loads(latest["rule_json"])
+        rule["calculation_chain"] = normalized
+        return db.execute(
+            "INSERT INTO formula_versions(formula_id,version,status,latex,rule_json,variables_json,dependencies_json,example_json,author_id) VALUES(?,?,'draft',?,?,?,?,?,?)",
+            (formula_id, latest["version"] + 1, latest["latex"], json.dumps(rule, ensure_ascii=False), latest["variables_json"], latest["dependencies_json"], latest["example_json"], author_id),
+        ).lastrowid
+
+
 def publish(formula_id: int, version_id: int) -> None:
     with connect() as db:
+        status = db.execute("SELECT status FROM formula_versions WHERE id=? AND formula_id=?", (version_id, formula_id)).fetchone()
+        if not status or status["status"] != "review":
+            raise ValueError("只有已提交审核的版本可以发布")
         db.execute("UPDATE formula_versions SET status='archived' WHERE formula_id=? AND status='published'", (formula_id,))
         db.execute("UPDATE formula_versions SET status='published',published_at=CURRENT_TIMESTAMP WHERE id=? AND formula_id=?", (version_id, formula_id))
         db.execute("UPDATE formulas SET active_version_id=? WHERE id=?", (version_id, formula_id))
@@ -194,6 +229,121 @@ def ocr_page(page_number: int) -> dict[str, Any]:
     return {"page_number": page_number, "page_image": f"pages/page_{page_number:03d}.png", "blocks": blocks, "formulas": formulas}
 
 
+_FORMULA_LABEL = re.compile(r"(?<!\d)(\d+(?:\.\d+){2,}-\d+)(?!\d)")
+
+
+def _normalise_formula_label(value: str) -> str:
+    """Normalise OCR punctuation without trying to correct any recognised digits."""
+    return re.sub(r"\s+", "", value).replace("．", ".").replace("·", ".").replace("－", "-").replace("—", "-").replace("–", "-").replace("一", "-")
+
+
+def ocr_formula_drafts() -> list[dict[str, Any]]:
+    """Return review-only drafts built from saved body OCR and formula OCR."""
+    audit_path = DATA_DIR / "ocr" / "JTS-144-1-2010.review-ocr.json"
+    numbered_path = DATA_DIR / "ocr" / "JTS-144-1-2010.numbered-formula-drafts.json"
+    audited_items: list[dict[str, Any]] = []
+    if audit_path.exists():
+        try:
+            reviewed_ocr = json.loads(audit_path.read_text(encoding="utf-8"))
+            audited_items = reviewed_ocr.get("formula_ocr", {}).get("items", [])
+        except (OSError, json.JSONDecodeError):
+            audited_items = []
+    formula_ocr_by_code = {item.get("code"): item for item in audited_items if item.get("code")}
+    if numbered_path.exists():
+        try:
+            numbered_items = json.loads(numbered_path.read_text(encoding="utf-8")).get("items", [])
+        except (OSError, json.JSONDecodeError):
+            numbered_items = []
+        if numbered_items:
+            return [
+                {
+                    **item,
+                    "id": -(index + 1),
+                    "source_crop_path": "",
+                    "ocr_latex": formula_ocr_by_code.get(item.get("suggested_code"), {}).get("recognized_latex", ""),
+                    "review_status": "draft_only",
+                }
+                for index, item in enumerate(numbered_items)
+            ]
+    if audited_items:
+        return [
+            {
+                "id": -(index + 1),
+                "page_number": int(item["page_number"]),
+                "sequence": index + 1,
+                "ocr_text": "",
+                "ocr_latex": item.get("recognized_latex", ""),
+                "raw_formula_label": item.get("code", ""),
+                "suggested_code": item.get("code", ""),
+                "source_crop_path": "",
+                "article_context": "已有高清 PDF 公式裁图 OCR；请与原文页逐项核对。",
+                "variable_context": [],
+                "review_status": "draft_only",
+                "engine_status": "复用已保存的高清 PDF 公式 OCR；仅供人工转写、验算和发布审核。",
+            }
+            for index, item in enumerate(audited_items)
+            if item.get("code") and item.get("page_number")
+        ]
+
+    with connect() as db:
+        rows = db.execute(
+            "SELECT id,page_number,sequence,block_type,corrected_text,bbox_json "
+            "FROM ocr_blocks ORDER BY page_number,sequence"
+        ).fetchall()
+    by_page: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        item = dict(row)
+        item["bbox"] = json.loads(item.pop("bbox_json"))
+        by_page.setdefault(item["page_number"], []).append(item)
+    drafts: list[dict[str, Any]] = []
+    for page_number, blocks in by_page.items():
+        for item in blocks:
+            bbox = item["bbox"]
+            # The right-most column contains the printed equation reference.
+            # This intentionally excludes inline article numbers and tables.
+            if bbox.get("x", 0) < 700:
+                continue
+            compact_label = _normalise_formula_label(item["corrected_text"])
+            match = _FORMULA_LABEL.search(compact_label)
+            if not match:
+                continue
+            label_y = bbox.get("y", 0) + bbox.get("height", 0) / 2
+            formula_bits = [
+                block["corrected_text"].strip()
+                for block in blocks
+                if block["bbox"].get("x", 0) < bbox.get("x", 0)
+                and abs(block["bbox"].get("y", 0) + block["bbox"].get("height", 0) / 2 - label_y) <= 32
+                and block["corrected_text"].strip()
+            ]
+            preceding_article = next(
+                (block for block in reversed(blocks) if block["block_type"] == "article" and block["bbox"].get("y", 0) < label_y),
+                None,
+            )
+            following_context = [
+                block["corrected_text"].strip()
+                for block in blocks
+                if label_y < block["bbox"].get("y", 0) <= label_y + 340
+                and block["bbox"].get("x", 0) < 700
+                and block["block_type"] in {"text", "heading", "article"}
+                and block["corrected_text"].strip()
+            ]
+            raw_label = match.group(1)
+            drafts.append({
+                "id": item["id"],
+                "page_number": page_number,
+                "sequence": item["sequence"],
+                "ocr_text": " ".join(formula_bits),
+                "raw_formula_label": raw_label,
+                "suggested_code": raw_label,
+                "source_crop_path": "",
+                "article_context": preceding_article["corrected_text"].strip() if preceding_article else "",
+                "variable_context": following_context,
+                "review_status": "draft_only",
+                "engine_status": "已识别右侧公式编号；待人工核对原图、转写与验算",
+            })
+    return drafts
+
+
 def migrate_legacy_ocr() -> None:
     legacy_root = ROOT.parent / "MooringForceDemo-Complete" / "uploads" / "doc_d8fff89756424a3aa78130f6821b985a"
     legacy_db = ROOT.parent / "MooringForceDemo-Complete" / "data" / "demo.sqlite"
@@ -270,6 +420,31 @@ def list_versions(formula_id: int) -> list[dict[str, Any]]:
     for row in rows:
         item = dict(row); item["example"] = json.loads(item.pop("example_json")); result.append(item)
     return result
+
+
+def related_formulas(formula_id: int, version_id: int | None = None) -> list[dict[str, Any]]:
+    """Return the selected formula, its direct dependencies and direct users.
+
+    Dependencies are formula codes because that is the stable, human-reviewable
+    reference used in the authoring form.  This is intentionally metadata only;
+    it never turns an OCR candidate into an executable formula.
+    """
+    current = formula_detail(formula_id, version_id)
+    if not current:
+        return []
+    with connect() as db:
+        rows = db.execute("SELECT f.*, v.id version_id, v.version, v.status, v.dependencies_json, v.rule_json FROM formulas f JOIN formula_versions v ON v.id=(SELECT id FROM formula_versions WHERE formula_id=f.id ORDER BY version DESC LIMIT 1)").fetchall()
+    dependency_codes = set(current["dependencies"])
+    chain_codes = set(current["rule"].get("calculation_chain", []))
+    related: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        item["dependencies"] = json.loads(item.pop("dependencies_json"))
+        item["calculation_chain"] = json.loads(item.pop("rule_json")).get("calculation_chain", [])
+        direction = "selected" if item["id"] == formula_id else "chain_predecessor" if item["code"] in chain_codes else "dependency" if item["code"] in dependency_codes else "chain_target" if current["code"] in item["calculation_chain"] else "dependent" if current["code"] in item["dependencies"] else None
+        if direction:
+            related.append({"id": item["id"], "code": item["code"], "name": item["name"], "version_id": item["version_id"], "version": item["version"], "status": item["status"], "direction": direction})
+    return sorted(related, key=lambda item: (0 if item["direction"] == "selected" else 1, item["code"]))
 
 
 def submit_for_review(formula_id: int, version_id: int, actor_id: int, note: str) -> None:

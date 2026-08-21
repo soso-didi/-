@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import shutil
 import subprocess
@@ -67,6 +68,8 @@ async def main() -> None:
     from pypdf import PdfReader  # noqa: PLC0415
 
     page_count = len(PdfReader(str(source)).pages)
+    with source.open("rb") as stream:
+        source_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
     pages: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="jts-ocr-") as temporary:
         temporary_dir = Path(temporary)
@@ -96,6 +99,7 @@ async def main() -> None:
                 "schema_version": 1,
                 "standard": {"code": "JTS 144-1-2010", "title": "港口工程荷载规范"},
                 "source_pdf": source.name,
+                "source_sha256": source_sha256,
                 "page_count": page_count,
                 "dpi": args.dpi,
                 "generated_at": datetime.now(UTC).isoformat(),

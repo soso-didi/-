@@ -26,6 +26,7 @@ class FormulaPayload(BaseModel):
 class CalculationRequest(BaseModel): formula_ids: list[int] = Field(min_length=1); inputs: dict[str, float]
 class ProjectPayload(BaseModel): name: str; client: str = ""; project_number: str = ""; design_basis: dict[str, Any] = {}
 class ReviewPayload(BaseModel): note: str = ""
+class CalculationChainPayload(BaseModel): predecessor_codes: list[str] = Field(default_factory=list)
 class CasePayload(BaseModel): name: str; formula_ids: list[int] = Field(min_length=1); inputs: dict[str, float]
 class DebugNotePayload(BaseModel): inputs: dict[str, float]; note: str = Field(min_length=1)
 
@@ -87,8 +88,32 @@ def get_ocr_assets(user=Depends(require_admin)): return {"items": database.ocr_a
 @app.get("/api/ocr-assets/{page_number}")
 def get_ocr_page(page_number: int, user=Depends(require_admin)): return database.ocr_page(page_number)
 
+@app.get("/api/admin/ocr-formula-drafts")
+def get_ocr_formula_drafts(user=Depends(require_admin)):
+    """Review-only OCR candidates; this endpoint never creates executable rules."""
+    return {"items": database.ocr_formula_drafts()}
+
 @app.get("/api/admin/formulas/{formula_id}/versions")
 def get_versions(formula_id: int, user=Depends(require_admin)): return {"items": database.list_versions(formula_id)}
+
+@app.get("/api/admin/formulas/{formula_id}/versions/{version_id}")
+def get_formula_version(formula_id: int, version_id: int, user=Depends(require_admin)):
+    detail = database.formula_detail(formula_id, version_id)
+    if not detail: raise HTTPException(404, "公式版本不存在")
+    return detail
+
+@app.get("/api/admin/formulas/{formula_id}/related")
+def get_related_formulas(formula_id: int, version_id: int | None = None, user=Depends(require_admin)):
+    return {"items": database.related_formulas(formula_id, version_id)}
+
+@app.post("/api/admin/formulas/{formula_id}/calculation-chain")
+def save_calculation_chain(formula_id: int, body: CalculationChainPayload, user=Depends(require_admin)):
+    """Save a reviewable ordered predecessor list without changing math dependencies."""
+    try:
+        version_id = database.save_calculation_chain(formula_id, body.predecessor_codes, user["id"])
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"version_id": version_id, "status": "draft"}
 
 @app.post("/api/admin/formulas/{formula_id}/versions/{version_id}/submit")
 def submit_review(formula_id: int, version_id: int, body: ReviewPayload, user=Depends(require_admin)):
@@ -108,6 +133,10 @@ def resolve(formula_id: int, inputs: dict[str, float], result_values: dict[str, 
     for dep_code in detail["dependencies"]:
         catalog = next((item for item in database.catalog(True) if item["code"] == dep_code), None)
         if not catalog: raise CalculationError(f"依赖公式未发布：{dep_code}")
+        dependency_key = catalog["rule"].get("result_key", dep_code)
+        if dependency_key in inputs:
+            result_values[dependency_key] = inputs[dependency_key]
+            continue
         dep = resolve(catalog["id"], inputs, result_values, versions, trace, visiting)
         result_values[dep["rule"].get("result_key", dep["code"])] = dep["value"]
     context = {**inputs, **result_values}
@@ -116,7 +145,7 @@ def resolve(formula_id: int, inputs: dict[str, float], result_values: dict[str, 
     if missing: raise CalculationError("缺少必要参数：" + "、".join(missing))
     evaluation = evaluate_rule(detail["rule"], context)
     detail["value"] = evaluation.value; versions[str(formula_id)] = detail["id"]
-    trace.append({"formula": detail["code"], "version": detail["version"], "citation": detail["citation"], "steps": evaluation.trace})
+    trace.append({"formula": detail["code"], "version": detail["version"], "citation": detail["citation"], "value": detail["value"], "steps": evaluation.trace})
     visiting.remove(formula_id)
     return detail
 
@@ -129,6 +158,13 @@ def calculate(body: CalculationRequest, user=Depends(require_user)):
             key = detail["rule"].get("result_key", detail["code"]); values[key] = detail["value"]
             outputs[detail["code"]] = {"name": detail["name"], "value": detail["value"], "unit": detail["rule"].get("unit", "kN"), "citation": detail["citation"], "version": detail["version"]}
     except CalculationError as exc: raise HTTPException(422, str(exc)) from exc
+    # A selected formula may resolve a published dependency first.  Returning
+    # that chain lets the user review and reuse the intermediate values.
+    published = {item["code"]: item for item in database.catalog(True)}
+    for item in trace:
+        formula = published.get(item["formula"])
+        if formula:
+            outputs[item["formula"]] = {"name": formula["name"], "value": item["value"], "unit": formula["rule"].get("unit", "kN"), "citation": formula["citation"], "version": item["version"]}
     record_id = database.save_record(user["id"], 1, body.formula_ids, versions, body.inputs, outputs, trace)
     return {"record_id": record_id, "outputs": outputs, "trace": trace}
 
@@ -162,15 +198,37 @@ def edit_formula(formula_id: int, body: FormulaPayload, user=Depends(require_adm
 def validate_formula(formula_id: int, version_id: int, user=Depends(require_admin)):
     detail = database.formula_detail(formula_id, version_id)
     if not detail: raise HTTPException(404, "公式版本不存在")
-    example = detail["example"]; result = evaluate_rule(detail["rule"], example["inputs"]).value
+    example = detail["example"]
+    chain_codes = detail["rule"].get("calculation_chain", [])
+    published_codes = {item["code"] for item in database.catalog(True)}
+    unpublished_chain = [code for code in chain_codes if code not in published_codes]
+    if unpublished_chain:
+        raise HTTPException(422, "计算链中的前置公式尚未发布：" + "、".join(unpublished_chain))
+    dependency_values: dict[str, float] = {}; versions: dict[str, int] = {}; trace: list[dict[str, Any]] = []
+    try:
+        for dependency in detail["dependencies"]:
+            published = next((item for item in database.catalog(True) if item["code"] == dependency), None)
+            if not published: raise CalculationError(f"依赖公式未发布：{dependency}")
+            resolved = resolve(published["id"], example["inputs"], dependency_values, versions, trace, set())
+            dependency_values[resolved["rule"].get("result_key", resolved["code"])] = resolved["value"]
+        result = evaluate_rule(detail["rule"], {**example["inputs"], **dependency_values}).value
+    except CalculationError as exc:
+        raise HTTPException(422, f"验算无法完成：{exc}") from exc
     expected, tolerance = float(example["expected"]), float(example.get("tolerance", 0.0001))
     return {"passed": abs(result - expected) <= tolerance, "actual": result, "expected": expected, "tolerance": tolerance}
 
 @app.post("/api/admin/formulas/{formula_id}/versions/{version_id}/publish")
 def publish_formula(formula_id: int, version_id: int, user=Depends(require_admin)):
+    detail = database.formula_detail(formula_id, version_id)
+    if not detail: raise HTTPException(404, "公式版本不存在")
+    if detail["status"] != "review": raise HTTPException(422, "请先提交审核，再执行发布确认")
     validation = validate_formula(formula_id, version_id, user)
     if not validation["passed"]: raise HTTPException(422, "验算样例未通过，不能发布")
-    database.publish(formula_id, version_id); return {"status": "published"}
+    try:
+        database.publish(formula_id, version_id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"status": "published"}
 
 @app.get("/api/health")
 def health(): return {"status": "ok"}

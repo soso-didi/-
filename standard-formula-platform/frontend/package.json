@@ -4,7 +4,7 @@
 		"check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"katex": "^0.18.4",
+		"katex": "0.16.22",
 		"lucide-react": "0.427.0",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",

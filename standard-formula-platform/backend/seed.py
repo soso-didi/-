@@ -16,7 +16,7 @@ def seed() -> None:
         if db.execute("SELECT 1 FROM standards").fetchone():
             return
         source = ROOT.parent / "MooringForceDemo-Complete" / "uploads" / "doc_d8fff89756424a3aa78130f6821b985a" / "source.pdf"
-        target = ROOT / "data" / "sources" / "JTS-144-1-2010.pdf"
+        target = ROOT / "data" / "sources" / "JTS-144-1-2010-highres.pdf"
         if source.exists() and not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
@@ -29,10 +29,10 @@ def seed() -> None:
             {"code":"alpha","label":"α","unit":"°","required":True}, {"code":"beta","label":"β","unit":"°","required":True},
         ]
         formulas = [
-            ("10.2.1-1", "系缆力 N", r"N=\\frac{K}{n}[\\frac{ΣF_x}{\\sin α\\cos β}+\\frac{ΣF_y}{\\cos α\\cos β}]", {"kind":"expression", "expression":"K / n * (Fx / (sin(radians(alpha))*cos(radians(beta))) + Fy / (cos(radians(alpha))*cos(radians(beta))))", "conditions":[{"expression":"n > 0", "message":"受力系船柱数必须大于 0"}]}, variables, [], {"inputs":{"K":1.3,"n":4,"Fx":600,"Fy":300,"alpha":30,"beta":15},"expected":520.31,"tolerance":0.02}, "N"),
-            ("10.2.1-2", "系缆力纵向分力 Nx", r"N_x=N\\sin α\\cos β", {"kind":"expression", "expression":"N * sin(radians(alpha)) * cos(radians(beta))"}, variables[4:], ["10.2.1-1"], {"inputs":{"K":1.3,"n":4,"Fx":600,"Fy":300,"alpha":30,"beta":15},"expected":251.29,"tolerance":0.02}, "Nx"),
-            ("10.2.1-3", "系缆力横向分力 Ny", r"N_y=N\\cos α\\cos β", {"kind":"expression", "expression":"N * cos(radians(alpha)) * cos(radians(beta))"}, variables[4:], ["10.2.1-1"], {"inputs":{"K":1.3,"n":4,"Fx":600,"Fy":300,"alpha":30,"beta":15},"expected":435.25,"tolerance":0.02}, "Ny"),
-            ("10.2.1-4", "系缆力竖向分力 Nz", r"N_z=N\\sin β", {"kind":"expression", "expression":"N * sin(radians(beta))"}, variables[5:], ["10.2.1-1"], {"inputs":{"K":1.3,"n":4,"Fx":600,"Fy":300,"alpha":30,"beta":15},"expected":134.67,"tolerance":0.02}, "Nz"),
+            ("10.2.1-1", "系缆力 N", r"N=\frac{K}{n}[\frac{ΣF_x}{\sin α\cos β}+\frac{ΣF_y}{\cos α\cos β}]", {"kind":"expression", "expression":"K / n * (Fx / (sin(radians(alpha))*cos(radians(beta))) + Fy / (cos(radians(alpha))*cos(radians(beta))))", "conditions":[{"expression":"n > 0", "message":"受力系船柱数必须大于 0"}]}, variables, [], {"inputs":{"K":1.3,"n":4,"Fx":600,"Fy":300,"alpha":30,"beta":15},"expected":520.31,"tolerance":0.02}, "N"),
+            ("10.2.1-2", "系缆力纵向分力 Nx", r"N_x=N\sin α\cos β", {"kind":"expression", "expression":"N * sin(radians(alpha)) * cos(radians(beta))"}, variables[4:], ["10.2.1-1"], {"inputs":{"K":1.3,"n":4,"Fx":600,"Fy":300,"alpha":30,"beta":15},"expected":251.29,"tolerance":0.02}, "Nx"),
+            ("10.2.1-3", "系缆力横向分力 Ny", r"N_y=N\cos α\cos β", {"kind":"expression", "expression":"N * cos(radians(alpha)) * cos(radians(beta))"}, variables[4:], ["10.2.1-1"], {"inputs":{"K":1.3,"n":4,"Fx":600,"Fy":300,"alpha":30,"beta":15},"expected":435.25,"tolerance":0.02}, "Ny"),
+            ("10.2.1-4", "系缆力竖向分力 Nz", r"N_z=N\sin β", {"kind":"expression", "expression":"N * sin(radians(beta))"}, variables[5:], ["10.2.1-1"], {"inputs":{"K":1.3,"n":4,"Fx":600,"Fy":300,"alpha":30,"beta":15},"expected":134.67,"tolerance":0.02}, "Nz"),
         ]
         for code, name, latex, rule, vars_, deps, example, result_key in formulas:
             formula_id = db.execute("INSERT INTO formulas(standard_id,chapter_id,code,name,citation,page_number) VALUES(?,?,?,?,?,30)", (standard_id, chapter_id, code, name, "JTS 144-1-2010，第 10.2.1 条",)).lastrowid
